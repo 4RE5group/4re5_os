@@ -1,37 +1,55 @@
-C_OUTPUT="kmain.o"
-GCC_FLAGS="-m32 -nostdlib -nostdinc -fno-builtin -fno-stack-protector -nostartfiles -nodefaultlibs -Werror"
+OUTPUT="./bin"
+FLAGS="-g -ffreestanding -nostdlib -nostartfiles -nodefaultlibs -Wall -O0 -Iinc"
+FINAL_FILE="OS.elf"
 
-# clean
+COLOR_ERROR="\e[31m"
+COLOR_GREEN="\e[32m"
+COLOR_RESET="\e[0m"
+
+
 clear
-rm -rf os.iso kernel.elf *.o
 
+# clear OUTPUT
+rm -rf $OUTPUT/*
 
-# build kernel
-nasm -f elf loader.s -o loader.o
-nasm -f elf io.s -o io.o
-# c code
-gcc $GCC_FLAGS -c src/kmain.c -o $C_OUTPUT
-gcc $GCC_FLAGS -c src/framebuffer.c -o framebuffer.o
-gcc $GCC_FLAGS -c src/serial_port.c -o serial_port.o
+# compile bootloader
+nasm -f elf64 boot.asm -o $OUTPUT/boot.o
+#compile io
+nasm -f elf64 kernel/io.asm -o $OUTPUT/io.o
 
+# compile kernel C
+if ! gcc -I./kernel $FLAGS -std=gnu99 -c ./kernel/main.c -o $OUTPUT/kernel_main.o; then
+    echo -e "$COLOR_ERROR[x] kmain compile error$COLOR_RESET"
+    exit
+fi
+if ! gcc -I./kernel $FLAGS -std=gnu99 -c ./kernel/framebuffer.c -o $OUTPUT/kernel_framebuffer.o; then
+    echo -e "$COLOR_ERROR[x] framebuffer compile error$COLOR_RESET"
+    exit
+fi
 
 # link kernel
-ld -T link.ld -melf_i386 *.o -o kernel.elf
+# if ! ld -g -nostdlib -relocatable bin/*.o -o $OUTPUT/kernel.o; then
+#     echo -e "$COLOR_ERROR[x] linking to kernel.o error$COLOR_RESET"
+#     exit
+# fi
+# convert kernel to bin format
+# if ! gcc $FLAGS -nostdlib -nodefaultlibs -T link.ld -o $OUTPUT/kernel.bin $OUTPUT/completeKernel.o; then
+#     echo -e "$COLOR_ERROR[x] error converting completeKernel.o > kernel.bin$COLOR_RESET"
+#     exit
+# fi
 
-# move kernel
-cp kernel.elf iso/boot/kernel.elf
+# assemble whole OS
+ld -T link.ld -melf_x86_64 $OUTPUT/*.o -o $OUTPUT/$FINAL_FILE
+# if ! dd if=$OUTPUT/boot.o >> $OUTPUT/$FINAL_FILE && \
+# dd if=$OUTPUT/kernel.o >> $OUTPUT/$FINAL_FILE && \
+# dd if=/dev/zero bs=512 count=8 >> $OUTPUT/$FINAL_FILE; then
+#     echo -e "$COLOR_ERROR[x] error assembling whole OS$COLOR_RESET"
+#     exit
+# fi
 
-# build iso
-genisoimage -R\
-            	-b boot/grub/stage2_eltorito   \
-            	-no-emul-boot                       \
-            	-boot-load-size 4                   \
-            	-A os                               \
-            	-input-charset utf8                 \
-            	-quiet                              \
-            	-boot-info-table                    \
-            	-o os.iso                           \
-             	iso
 
-# emulate
-bochs -f bochsrc.txt -q
+
+# emulate for testing 
+echo -e "$COLOR_GREEN[o] Compilated successfully$COLOR_RESET"
+qemu-system-x86_64 bin/$FINAL_FILE
+# -monitor stdio
