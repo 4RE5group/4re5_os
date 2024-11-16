@@ -1,55 +1,55 @@
+#!/bin/bash
+
 OUTPUT="./bin"
-FLAGS="-g -ffreestanding -nostdlib -nostartfiles -nodefaultlibs -Wall -O0 -Iinc"
-FINAL_FILE="OS.elf"
+FLAGS="-ffreestanding -fno-pic -nostdlib -nostartfiles -m32" 
+
+OS_NAME="4re5_os"
+FINAL_FILE="$OS_NAME.bin"
 
 COLOR_ERROR="\e[31m"
 COLOR_GREEN="\e[32m"
 COLOR_RESET="\e[0m"
+arch_format="x86_64"  # Change to x86_64
+format="elf64"
 
-
-clear
-
-# clear OUTPUT
+# Clear OUTPUT directory
 rm -rf $OUTPUT/*
+mkdir -p $OUTPUT
+clear
+# dd if=/dev/zero of=disk.img bs=512 count=2880 seek=0 conv=notrunc
 
-# compile bootloader
-nasm -f elf64 boot.asm -o $OUTPUT/boot.o
-#compile io
-nasm -f elf64 kernel/io.asm -o $OUTPUT/io.o
+# Compile bootloader (if needed, depends on if you use a separate boot.asm)
+nasm -f bin boot.asm -o $OUTPUT/boot.bin || exit 1
+nasm -f bin kernel/loader.asm -o $OUTPUT/loader.bin || exit 1
 
-# compile kernel C
-if ! gcc -I./kernel $FLAGS -std=gnu99 -c ./kernel/main.c -o $OUTPUT/kernel_main.o; then
-    echo -e "$COLOR_ERROR[x] kmain compile error$COLOR_RESET"
-    exit
-fi
-if ! gcc -I./kernel $FLAGS -std=gnu99 -c ./kernel/framebuffer.c -o $OUTPUT/kernel_framebuffer.o; then
-    echo -e "$COLOR_ERROR[x] framebuffer compile error$COLOR_RESET"
-    exit
-fi
+# Compile kernel files
+gcc -m32 -ffreestanding -c kernel/main.c -o $OUTPUT/kernel.o -e kmain || exit 1
 
-# link kernel
-# if ! ld -g -nostdlib -relocatable bin/*.o -o $OUTPUT/kernel.o; then
-#     echo -e "$COLOR_ERROR[x] linking to kernel.o error$COLOR_RESET"
-#     exit
-# fi
-# convert kernel to bin format
-# if ! gcc $FLAGS -nostdlib -nodefaultlibs -T link.ld -o $OUTPUT/kernel.bin $OUTPUT/completeKernel.o; then
-#     echo -e "$COLOR_ERROR[x] error converting completeKernel.o > kernel.bin$COLOR_RESET"
-#     exit
-# fi
+ld -m elf_i386 -e kmain -Ttext 0x2000 $OUTPUT/kernel.o -o $OUTPUT/kernel.elf || exit 1
+objcopy -O binary $OUTPUT/kernel.elf $OUTPUT/kernel.bin || exit 1
 
-# assemble whole OS
-ld -T link.ld -melf_x86_64 $OUTPUT/*.o -o $OUTPUT/$FINAL_FILE
-# if ! dd if=$OUTPUT/boot.o >> $OUTPUT/$FINAL_FILE && \
-# dd if=$OUTPUT/kernel.o >> $OUTPUT/$FINAL_FILE && \
-# dd if=/dev/zero bs=512 count=8 >> $OUTPUT/$FINAL_FILE; then
-#     echo -e "$COLOR_ERROR[x] error assembling whole OS$COLOR_RESET"
-#     exit
-# fi
+# Link kernel object files into a single ELF
+dd if=$OUTPUT/boot.bin of=disk.img bs=512 count=1  # Create a blank disk image
+dd if=$OUTPUT/loader.bin of=disk.img bs=512 seek=1 count=1
+dd if=$OUTPUT/kernel.bin of=disk.img bs=512 seek=2
+# dd if=$OUTPUT/boot.bin of=disk.img bs=512 seek=0 conv=notrunc
+# dd if=$OUTPUT/kernel.bin of=disk.img bs=512 seek=1 conv=notrunc
+
+# ld -m elf_x86_64 -o $OUTPUT/$FINAL_FILE -Ttext 0x1000 $OUTPUT/boot.o $OUTPUT/kernel_main.o || exit 1
+# ld -m elf_i386 -Ttext 0x1000 $OUTPUT/boot.o $OUTPUT/kernel_main.o -o $OUTPUT/kernel.bin --oformat binary
+# ld -m elf_x86_64 -o $OUTPUT/$FINAL_FILE --entry=_start $OUTPUT/boot.o $OUTPUT/kernel_main.o || exit 1
+# ld -m elf_x86_64 -o $OUTPUT/$FINAL_FILE $OUTPUT/*.o || exit 1
+
+# make disk
+# dd if=$OUTPUT/$FINAL_FILE of=disk.img bs=512 count=2880
 
 
 
-# emulate for testing 
-echo -e "$COLOR_GREEN[o] Compilated successfully$COLOR_RESET"
-qemu-system-x86_64 bin/$FINAL_FILE
-# -monitor stdio
+# Set permissions for output files
+chmod 777 $OUTPUT/*
+
+echo -e "$COLOR_GREEN[o] Compiled successfully$COLOR_RESET"
+
+# Test the kernel with QEMU
+qemu-system-x86_64 -drive file=disk.img,format=raw --no-reboot --no-shutdown -m 2048 -vga std -d int
+# qemu-system-x86_64 -kernel $OUTPUT/$FINAL_FILE -m 2048 -vga std --no-reboot --no-shutdown -machine type=pc-i440fx-3.1 || exit 1
