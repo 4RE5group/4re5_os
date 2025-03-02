@@ -1,18 +1,29 @@
-void set_red_pixel(int x, int y) {
-    unsigned char *video_memory = (unsigned char *)0xA0000; // VESA framebuffer base address
-    int offset = (y * 640) + x; // Offset to the pixel at (x, y)
-    video_memory[offset] = 0x04; // Red color index (assuming 0x04 is red)
-}
+#include "include/display.h"
+#include "include/stdint.h"
+#include "shell.h"
+#include "include/images/background.h"
+#include "include/gui.h"
 
-void main(void)
+int main()
 {
-    for (int y=0; y<100; y++) {
-        for (int x=0; x<100; x++) {
-            set_red_pixel(x, y);  // Set pixel at (100, 100)
+    // draw background
+    draw_image(background, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+
+    // draw_text("4re5 Group", 10, 10, COLOR_LIGHTRED);
+    TaskbarDraw();
+
+    BYTE key;
+    while(1) {
+        key = getKeyPress();
+
+        if(key == KEY_ESC){                             //x  y    w    h  state focus
+            Window win1 = { "Window Name1", COLOR_CYAN, 100, 100, 100, 100, 1, true, 0, 0, 0 };
+            draw_window(&win1);
         }
-        
-       
+
+        while(key == getKeyPress()){}
     }
-    return;
+    // handle_shell();
+    return 0;
 }
 
