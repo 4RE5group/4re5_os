@@ -10,28 +10,6 @@ void TaskbarDraw() {
     draw_image(start, 5, 5, 15, 15);
 }
 
-typedef struct
-{
-    char* title;
-    BYTE color;
-
-    int x, y;
-    int width, height;
-
-    int state; //0 = minimized, 1 = normal, 2 = maximized
-    int focus;
-
-    int isDragging;
-
-    int dragOffsetX;
-    int dragOffsetY;
-
-    int isMaximized;
-
-    int orgX, orgY;
-    int orgW, orgH;
-} Window;
-
 
 void draw_window(Window* window) {
     // Open the window
