@@ -7,7 +7,8 @@ Simple x86 operating system
 ### TODO
 - [x] GDT table
 - [x] protected mode
-- [x] custom image rendering
+- [x] image, shapes and text rendering
+- [ ] better resolution (640x480 to 1024x768)
 - [ ] filesystem
 - [ ] memory handling
 - [ ] networking
